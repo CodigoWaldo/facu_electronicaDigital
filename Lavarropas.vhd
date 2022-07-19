@@ -1,289 +1,226 @@
 library ieee;
 use ieee.std_logic_1164.all;
 
--- /////////////////////////////////////////////
--- Declaración de los puertos de entrada y salida que se utilizaran.
 entity Lavarropas is
 port(
-    perilla          : in std_logic_vector(2 downto 0) := "000";
-    inicio           : in std_logic := '0';
-    clk              : in std_logic := '0';
-    led_tapa         : out std_logic := '0' ;
-    led_lavado       : out std_logic := '0';
-    led_centrifugado : out std_logic := '0';
-    led_enjuague     : out std_logic := '0'
+      -- Perilla
+      perilla          : in std_logic_vector(2 downto 0) := "000";
+      -- Boton inicio  
+      inicio           : in std_logic  := '0';
+      -- Clock                     
+      clk              : in std_logic  := '0';
+      -- Sensores                     
+      sal_sensor0      : in std_logic  := '0';
+      sal_sensor1      : in std_logic  := '0';                  
+      sal_sensor2      : in std_logic  := '0';
+      sal_sensor3      : in std_logic  := '0';
+      sal_sensor4      : in std_logic  := '0';
+      -- Valvulas  
+      act_VL           : out std_logic  := '0';                    
+      act_VS           : out std_logic  := '0';
+      act_VJ           : out std_logic  := '0';
+      act_VV           : out std_logic  := '0';
+      -- Motor 
+      med              : out std_logic  := '0';                    
+      alt              : out std_logic  := '0';
+      -- Bomba 
+      act_bomba        : out std_logic  := '0';
+      -- Electroiman                    
+      act_electroiman  : out std_logic  := '0';
+      -- Leds                    
+      led_tapa         : out std_logic := '0';                   
+      led_lavado       : out std_logic := '0';
+      led_centrifugado : out std_logic := '0';
+      led_enjuague     : out std_logic := '0'
+
 );
 end entity;
--- /////////////////////////////////////////////
-
--- /////////////////////////////////////////////
--- Definición de la arquitectura asociada a las entidades.
--- A partir de aquí se describe la operación y organización del circuito.
-
+          
 architecture sens of Lavarropas is
-    signal Contador : integer range 0 to 63 := 0;
-    
------------ clases utilizadas
-    component Motor
-    port(
-        med : in std_logic;
-        alt : in std_logic
-        );
-    end component;
-        
-    component Bomba
-    port(
-        act_bomba : in std_logic
-        );
-    end component;
+    --Contador
+    signal cont : integer range 0 to 63 := 0;
 
-    component Valvula
-    port(
-        act_valvula : in std_logic
-    );
-    end component;
-
-    component Sensor
-    port(
-        sal_sensor : out std_logic
-    );
-    end component;
-
-    component Electroiman
-    port(
-        act_electroiman : in std_logic;
-        salida_electroiman : out std_logic
-    );
-    end component;
-
----------- "cables" que indican las señales de cada entidad
-
-    --CABLES 
-
-    --Valvulas
-    signal act_VJ : std_logic := '0';
-    signal act_VS : std_logic := '0';
-    signal act_VL : std_logic := '0';
-    signal act_VV : std_logic := '0';
-
-    --Motor
-    signal alt : std_logic := '0';
-    signal med : std_logic := '0';
-
-    --Bomba
-    signal act_bomba : std_logic := '0';
-
-    --Electroiman
-    signal act_electroiman : std_logic := '0';
-    signal salida_electroiman : std_logic := '0';
-
-    --Sensores
-    signal sal_sensor0 : std_logic := '0';
-    signal sal_sensor1 : std_logic := '0';
-    signal sal_sensor2 : std_logic := '0';
-    signal sal_sensor3 : std_logic := '0';
-    signal sal_sensor4 : std_logic := '0';
-
-    --Maquina de Estados
-    signal state_reg  : std_logic_vector(4 downto 0);
-    signal next_state : std_logic_vector(4 downto 0);
+    --Registro de estado
+    signal state_reg  : std_logic_vector(5 downto 0);
 
     --Bandera
-    signal lavado_flag : std_logic_vector(1 downto 0) := "00";
+    signal camino : std_logic_vector(1 downto 0) := "00";
 
     --Estados
-    Constant IDLE         : std_logic_vector(4 downto 0) := "00001";
-    Constant LAVADO       : std_logic_vector(4 downto 0) := "00010";
-    Constant ENJUAGUE     : std_logic_vector(4 downto 0) := "00100";
-    Constant CENTRIFUGADO : std_logic_vector(4 downto 0) := "01000";
-    Constant DESAGOTE     : std_logic_vector(4 downto 0) := "10000";
-    begin
-
-    --Valvulas
-    VS: Valvula port map(
-        act_valvula => act_VS
-    ); 
-    VJ: Valvula port map(
-        act_valvula => act_VJ
-    );
-    VL: Valvula port map(
-        act_valvula => act_VL
-    );
-    VV: Valvula port map(
-        act_valvula => act_VV
-    );
-
-    --Motor
-    CVM: Motor port map(
-        alt => alt,
-        med => med
-    );
+    Constant IDLE         : std_logic_vector(5 downto 0) := "000001";
+    Constant LAVADO       : std_logic_vector(5 downto 0) := "000010";
+    Constant ENJUAGUE     : std_logic_vector(5 downto 0) := "000100";
+    Constant CENTRIFUGADO : std_logic_vector(5 downto 0) := "001000";
+    Constant LLENADO      : std_logic_vector(5 downto 0) := "010000";
+    Constant DESAGOTE     : std_logic_vector(5 downto 0) := "100000";
     
-    --Bomba
-    CB: Bomba port map(
-        act_bomba => act_bomba
-    );
-
-    --Electroiman
-    TT: Electroiman port map(
-        act_electroiman => act_electroiman,
-        salida_electroiman => salida_electroiman
-    );
-
-    --Sensores
-    S0: Sensor port map(
-        sal_sensor => sal_sensor0
-    );
-
-    S1: Sensor port map(
-        sal_sensor => sal_sensor1
-    );
-
-    S2: Sensor port map(
-        sal_sensor => sal_sensor2
-    );
-
-    S3: Sensor port map(
-        sal_sensor => sal_sensor3
-    );
-
-    S4: Sensor port map(
-        sal_sensor => sal_sensor4
-    );
---------SIGUIENTE ESTADO
-    process(next_state)
-    begin                            
-        if next_state'event then
-            state_reg <= next_state;
-        end if;
-    end process;
-
+    begin
     process(clk)
     begin
         if rising_edge(clk) then
-            Contador <= Contador + 1;
-            led_tapa <= salida_electroiman;
+            cont <= cont + 1 ;
             case state_reg is
---------IDLE Y ELECTROIMAN--------------------------------------------------------------------------------------------
+--------------------------------------------------- SELECTOR DEL PROGRAMA
                 when IDLE=>
                     act_electroiman <= '0';
+                    led_tapa <= '0';
                     if inicio = '1' then
-                        if perilla = "001" or perilla = "011" or perilla = "101" or perilla = "111" then
-                            Contador <= 0;
-                            next_state <= LAVADO;
-                        end if;
-                        if perilla = "110" or perilla = "010" then
-                            Contador <= 0;
-                            next_state <= ENJUAGUE;
-                        end if;
-                        if perilla = "100" then
-                            Contador <= 0;
-                            next_state <= CENTRIFUGADO;
+                        if perilla = "001" or  perilla = "011" or  perilla = "101" or  perilla = "111" then
+                            camino <= "00";
+                            cont <= 0;
+                            state_reg <= LLENADO;
+                        elsif perilla = "010" or perilla = "110" then
+                            camino <= "01";
+                            cont <= 0;
+                            state_reg <= LLENADO;
+                        elsif perilla = "100" then
+                            cont <= 0;
+                            camino <= "11";
+                            state_reg <= CENTRIFUGADO;
                         end if;
                     else
-                        Contador <= 0;
-                        next_state <= IDLE;
+                        cont <= 0;
+                        state_reg <= IDLE;
                     end if;
-
---------LAVADO--------------------------------------------------------------------------------------------
+--------------------------------------------------- PROGRAMA LAVADO
                 when LAVADO =>
-                    
-                    if Contador = 1 then 
-                        act_electroiman <= '1';
+                    act_electroiman <= '1';
+                    led_tapa <= '1';
+                    if cont = 1 then
                         led_lavado <= '1';
-                        act_VJ <= '1';
-                        act_VL <= '1';
-                    elsif Contador = 6 then 
-                        act_VJ <= '0';
-                        act_VL <= '0';
-                        if sal_sensor2 = '0' or sal_sensor4 = '1' then
-                            Contador <= 0;
-                            led_lavado <= '0';
-                            lavado_flag <= "10";
-                            next_state <= DESAGOTE;
-                            else
-                            med <= '1';
+                        med <= '1';
+                    elsif cont = 30 then --tiempo de lavado, 30 minutos
+                        led_lavado <= '0';
+                        med <= '0';
+                        cont <= 0;
+                        if perilla = "001" then
+                            camino <= "11";
+                        elsif perilla = "101" then
+                            camino <= "10";
+                        elsif perilla = "011" or perilla = "111" then
+                            camino <= "01"; 
                         end if;
-                    elsif Contador = 36 then
-                            lavado_flag <= "01";
-                            med <= '0';
-                            Contador <= 0;
-                            led_lavado <= '0';
-                            next_state <= DESAGOTE;
+                        led_lavado <= '0';
+                        cont <= 0;
+                        state_reg <= DESAGOTE;
                     end if;
-                
---------ENJUAGUE--------------------------------------------------------------------------------------------
+--------------------------------------------------- PROGRAMA ENJUAGUE
                 when ENJUAGUE =>
-                    if Contador = 1 then 
-                        act_electroiman <= '1';
+                    act_electroiman <= '1';
+                    led_tapa <= '1';
+                    if cont = 1 then
                         led_enjuague <= '1';
-                        act_VS <= '1';
-                        act_VL <= '1';
-                    elsif Contador = 6 then 
-                        act_VS <= '0';
-                        act_VL <= '0';
-                        if sal_sensor2 = '0' or sal_sensor4 = '1' then
-                            Contador <= 0;
-                            led_enjuague <= '0';
-                            next_state <= DESAGOTE;
-                            else
-                            med <= '1';
+                        med <= '1';
+                    elsif cont = 30 then --tiempo de enjuague, 30 minutos
+                        med <= '0';
+                        cont <= 0;
+                        led_enjuague <= '0';
+                        if perilla = "010" or perilla = "011" then
+                            camino <= "11";
+                        elsif perilla = "110" or perilla = "111" then
+                            camino <= "10";
                         end if;
-                    elsif Contador = 36 then
-                            med <= '0';
-                            Contador <= 0;
-                            led_enjuague <= '0';
-                            next_state <= DESAGOTE;
+                        led_enjuague <= '0';
+                        state_reg <= DESAGOTE;
                     end if;
-                
---------CENTRIFUGADO--------------------------------------------------------------------------------------------
+--------------------------------------------------- PROGRAMA CENTRIFUGADO
                 when CENTRIFUGADO =>
-                    if Contador = 1 then
+                    act_electroiman <= '1';
+                    led_tapa <= '1';
+                    if cont = 1 then
                         led_centrifugado <= '1';
-                        act_electroiman <= '1';
-                        alt <= '1';
-                    elsif Contador = 16 then
-                        alt <= '0'; 
-                        Contador <= 0;
-                        led_centrifugado <= '0';
-                        next_state <= IDLE;
-                    end if;
---------DESAGOTE--------------------------------------------------------------------------------------------
-                when DESAGOTE =>
-                    if Contador = 1 then
-                        act_VV <= '1';
-                        act_bomba <= '1';
-                    elsif Contador = 5 then
-                        if perilla = "001" or perilla = "010" or lavado_flag = "10" then
-                            Contador <= 0;
-                            next_state <= IDLE;
-                        elsif perilla = "101" or perilla = "110" then
-                            Contador <= 0;
-                            next_state <= CENTRIFUGADO;
-                        elsif perilla = "111" or perilla = "011" then
-                            if lavado_flag = "00" then
-                                Contador <= 0;
-                                next_state <= ENJUAGUE;
-                            else 
-                                lavado_flag <= "00";
-                                if perilla = "111" then
-                                    Contador <= 0;
-                                    next_state <= CENTRIFUGADO;
-                                else
-                                    Contador <= 0;
-                                    next_state <= IDLE;
-                                end if;
-                            end if;
+                        if sal_sensor0 = '1' then
+                            led_centrifugado <= '0';
+                            camino <= "10";
+                            cont <= 0;
+                            alt <= '0';
+                            state_reg <= DESAGOTE;
+                        else
+                            alt <= '1';
                         end if;
+                    elsif cont = 15 then --tiempo de centrifugado, 15 minutos
+                        alt <= '0';
+                        camino <= "00";
+                        cont <= 0;
+                        led_centrifugado <= '0';
+                        state_reg <= DESAGOTE;
+                    else 
+
+                    end if;
+--------------------------------------------------- PROGRAMA LLENADO
+                when LLENADO =>
+                    act_electroiman <= '1';
+                    led_tapa <= '1';
+                    if sal_sensor4 = '0' then
+                        if cont = 1 and sal_sensor2 = '0' then
+                            if camino = "00" then 
+                                act_VL <= '1';
+                                act_VJ <= '1';
+                            elsif camino = "01" then
+                                act_VL <= '1';
+                                act_VS <= '1';
+                            end if;
+                        elsif sal_sensor2 = '1' and cont < 5 then --CASO DE ERROR CORTE DE AGUA
+                            act_VL <= '0';
+                            act_VS <= '0';
+                            act_VJ <= '0';
+                            if camino = "00" then
+                                cont <= 0;
+                                state_reg <= LAVADO;
+                            else
+                                cont <= 0;
+                                state_reg <= ENJUAGUE;
+                            end if;
+                        elsif cont = 5 then
+                            act_VL <= '0';
+                            act_VS <= '0';
+                            act_VJ <= '0'; 
+                            camino <= "11";
+                            cont <= 0;
+                            state_reg <= DESAGOTE;
+                        end if;
+                    else --CASO DE ERROR SOBRELLENADO
+                        act_VL <= '0';
+                        act_VS <= '0';
+                        act_VJ <= '0'; 
+                        camino <= "11";
+                        cont <= 0;
+                        state_reg <= DESAGOTE;
+                    end if;
+--------------------------------------------------- PROGRAMA DESAGOTE
+                when DESAGOTE =>
+                    act_electroiman <= '1';
+                    led_tapa <= '1';
+                    if cont = 1 and sal_sensor0 = '1' then
+                        act_bomba <= '1';
+                        act_VV <= '1';
+                    elsif cont > 1 and sal_sensor0 = '0' then
                         act_bomba <= '0';
                         act_VV <= '0';
+                        if camino = "01" then
+                            cont <= 0;
+                            state_reg <= LLENADO;
+                        elsif camino = "10" then
+                            cont <= 0;
+                            state_reg <= CENTRIFUGADO;
+                        else
+                            cont <= 0;
+                            state_reg <= IDLE;
+                        end if;
+                    elsif cont = 5 and sal_sensor0 = '1' then --CASO DE ERROR NO ESTA VACIANDO (FLUJO OBSTRUIDO)
+                        act_bomba <= '0';
+                        cont <= 0;
+                        state_reg <= IDLE;
+                    elsif cont = 1 and sal_sensor0 = '0' then
+                        act_bomba <= '0';
+                        cont <= 0;
+                        state_reg <= IDLE;
                     end if;
+--------------------------------------------------- En caso de falla de memoria (estado inexistente)
                 when others =>
-                Contador <= 0;
-                next_state <= IDLE;
+                cont <= 0;
+                state_reg <= IDLE;
             end case;
         end if;   
     end process;
-
 end architecture;
--- /////////////////////////////////////////////
